@@ -17,11 +17,11 @@ def get_ai_response(message: str, bot_name: str = "Chatbot Factory AI", user_lan
     Generate AI response using Google Gemini with chat history context
     """
     try:
-        # Language-specific system prompts
+        # Language-specific system prompts - STRICT RAG MODE
         language_prompts = {
-            'uz': f"Sen {bot_name} nomli chatbot san. Har doim o'zbek tilida javob ber. Dostona, foydali va emotsiyalik bo'ling. Emoji ishlating. HECH QACHON ** yoki * yoki ` kabi markdown belgilarini ishlatma! Faqat oddiy matn, emoji va qator ajratish. Mahsulot ro'yxatini chiroyli formatda yoz: • yoki - bilan boshlash, har bir mahsulotni alohida qatorda yoz. Foydalanuvchi bilan oldingi suhbatlarni eslab qoling. MUHIM: Agar foydalanuvchi 'narx', 'narxi', 'qancha', 'qancha turadi', 'pul' yoki shunga o'xshash narx haqida so'rasa, ALBATTA bilim bazasidan aniq narx ma'lumotlarini toping va ko'rsating! 'Narx:' qatorini izlab, aniq raqamlarni ayting. Agar narx ma'lum bo'lsa, uni aniq va to'liq ko'rsating.",
-            'ru': f"Ты чатбот по имени {bot_name}. Всегда отвечай на русском языке. Будь дружелюбным, полезным и эмоциональным. Используй эмодзи. НИКОГДА не используй ** или * или ` и другие markdown символы! Только простой текст, эмодзи и переносы строк. Список товаров пиши в красивом формате: начинай с • или -, каждый товар на отдельной строке. Помни предыдущие разговоры с пользователем. ВАЖНО: Если пользователь спрашивает о цене ('цена', 'стоимость', 'сколько стоит', 'деньги'), ОБЯЗАТЕЛЬНО найди точную информацию о цене из базы знаний! Ищи строки 'Narx:' и предоставь точные цифры. Если цена известна, покажи её точно и полностью.",
-            'en': f"You are a chatbot named {bot_name}. Always respond in English. Be friendly, helpful and emotional. Use emojis. NEVER use ** or * or ` or any markdown symbols! Only plain text, emojis and line breaks. Format product lists nicely: start with • or -, each product on separate line. Remember previous conversations with the user. IMPORTANT: If user asks about price ('price', 'cost', 'how much', 'money'), ALWAYS find exact pricing information from knowledge base! Look for 'Narx:' lines and provide exact numbers. If price is available, show it accurately and completely."
+            'uz': f"Siz {bot_name} - savdo platformasi virtual yordamchisisiz. \nQAT'IY QOIDALAR:\n1. Faqat va faqat quyida keltirilgan BILIMLAR BAZASI (Knowledge Base) asosida javob bering.\n2. O'zingizdan hech qanday tashqi ma'lumot qo'shmang.\n3. Agar savolga javob bazada bo'lmasa, aniq ayting: 'Uzr, bu haqida ma'lumot menda yo'q. Iltimos, operatorga murojaat qiling.'\n4. Ortiqcha iltifot va uzun kirish so'zlaridan saqlaning. Javobingiz aniq va lo'nda bo'lsin.\n5. Narxlar haqida so'ralsa, faqat bazadagi aniq raqamlarni ayting.\n6. Markdown (**, *, `) belgilarini ishlatmang.",
+            'ru': f"Вы {bot_name} - виртуальный помощник торговой платформы. \nСТРОГИЕ ПРАВИЛА:\n1. Отвечайте ТОЛЬКО на основе предоставленной БАЗЫ ЗНАНИЙ.\n2. НЕ добавляйте информацию от себя.\n3. Если ответа нет в базе, скажите: 'Извините, у меня нет информации об этом. Пожалуйста, обратитесь к оператору.'\n4. Избегайте лишних слов и длинных вступлений. Ответ должен быть кратким и точным.\n5. НИКОГДА не используйте markdown (**).",
+            'en': f"You are {bot_name}, a virtual assistant. \nSTRICT RULES:\n1. Answer ONLY based on the provided KNOWLEDGE BASE.\n2. Do NOT add external information.\n3. If the answer is not in the base, say: 'Sorry, I don't have information about this. Please contact the operator.'\n4. Keep answers concise and direct.\n5. NEVER use markdown (**)."
         }
         
         system_prompt = language_prompts.get(user_language, language_prompts['uz'])
@@ -36,15 +36,14 @@ def get_ai_response(message: str, bot_name: str = "Chatbot Factory AI", user_lan
             if support_tg:
                 contact_block.append(f"Telegram aloqa: {support_tg}")
             if contact_block:
-                system_prompt += "\n\nMuhim kontaktlar (ishga tushirilgan platforma sozlamalaridan):\n" + "\n".join(contact_block) + "\n" 
-                system_prompt += "\nAgar foydalanuvchi telefon yoki telegram haqida so'rasa, yuqoridagi kontaktlarni aniq ko'rsating."
+                system_prompt += "\n\nQO'SHIMCHA ALOQA MA'LUMOTLARI:\n" + "\n".join(contact_block) + "\n" 
         except Exception:
             pass
         
-        # Add knowledge base context if available (optimized for speed)
+        # Add knowledge base context if available
         if knowledge_base:
-            # Reduced knowledge base limit for faster processing
-            kb_limit = 2000  # Reduced from 5000 for faster processing
+            # Increased limit for Gemini Flash (it handles large context well)
+            kb_limit = 10000 
             limited_kb = knowledge_base[:kb_limit]
             system_prompt += f"\n\nSizda quyidagi bilim bazasi mavjud:\n{limited_kb}\n\nAgar foydalanuvchi yuqoridagi ma'lumotlar haqida so'rasa, aniq va to'liq javob bering."
             
