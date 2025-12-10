@@ -73,8 +73,9 @@ def get_ai_response(message: str, bot_name: str = "Chatbot Factory AI", user_lan
             top_k=40
         )
         
+        # Use gemini-flash-lite-latest as requested by user
         model = genai.GenerativeModel(
-            'gemini-1.5-flash',
+            'gemini-flash-lite-latest',
             generation_config=generation_config
         )
         response = model.generate_content(full_prompt)
@@ -109,9 +110,9 @@ def get_fallback_response(language: str = "uz") -> str:
     Fallback responses when AI fails
     """
     fallback_responses = {
-        'uz': "Salom! Men BotFactory AI botiman. Hozir AI xizmat sozlanmoqda. Tez orada sizga yordam bera olaman! 🤖 Savollaringizni yuboring, men eslab qolaman.",
-        'ru': "Привет! Я BotFactory AI бот. Сейчас настраивается AI сервис. Скоро смогу помочь вам! 🤖 Присылайте вопросы, я их запомню.",
-        'en': "Hello! I'm BotFactory AI bot. AI service is being configured now. I'll be able to help you soon! 🤖 Send your questions, I'll remember them."
+        'uz': "Salom! Men BotFactory AI botiman. Hozir AI xizmat sozlanmoqda. Tez orada sizga yordam bera olaman! 🤖",
+        'ru': "Привет! Я BotFactory AI бот. Сейчас настраивается AI сервис. Скоро смогу помочь вам! 🤖",
+        'en': "Hello! I'm BotFactory AI bot. AI service is being configured now. I'll be able to help you soon! 🤖"
     }
     return fallback_responses.get(language, fallback_responses['uz'])
 

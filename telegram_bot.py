@@ -322,8 +322,15 @@ class TelegramApplication:
                             uid = update.get('update_id')
                         except Exception:
                             uid = None
+                        
+                        # DEBUG: Log every update
+                        logger.info(f"DEBUG: Received update_id={uid}")
+                        
                         if uid is not None and not _mark_processed(uid):
+                            logger.info(f"DEBUG: Skipping duplicate update_id={uid}")
                             continue
+                        
+                        logger.info(f"DEBUG: Processing update_id={uid}")
                         asyncio.run(self.bot.process_update(update))
                         offset = update['update_id'] + 1
                         
@@ -431,8 +438,9 @@ class TelegramBot:
         self.application.add_handler(CommandHandler("help", self.help_command))
         self.application.add_handler(CommandHandler("language", self.language_command))
         self.application.add_handler(CommandHandler("ping", self.ping_command))
-        self.application.add_handler(CallbackQueryHandler(self.language_callback))
-        self.application.add_handler(CallbackQueryHandler(self.contact_callback))
+        self.application.add_handler(CommandHandler("marketing", self.marketing_command))
+        # Single unified callback handler to prevent duplicates
+        self.application.add_handler(CallbackQueryHandler(self.unified_callback_handler))
         self.application.add_handler(VoiceHandler(self.handle_voice_message))
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
     
@@ -540,6 +548,73 @@ class TelegramBot:
         if update and update.message:
             await update.message.reply_text(help_text)
     
+    async def help_command(self, update: Update, context) -> None:
+        """Handle /help command"""
+        help_text = """
+🤖 **BotFactory AI Yordam**
+
+Quyidagi buyruqlar mavjud:
+/start - Botni ishga tushirish
+/help - Yordam menyusi
+/language - Tilni o'zgartirish
+/marketing - SEO va Marketing post yaratish 🆕
+/ping - Bot holatini tekshirish
+
+💬 Menga xohlagan savolingizni bering!
+        """
+        if update.message:
+            await update.message.reply_text(help_text, parse_mode='Markdown')
+
+    async def ping_command(self, update: Update, context) -> None:
+        """Handle /ping command"""
+        if update.message:
+            await update.message.reply_text("🏓 Pong! Bot ishlamoqda.")
+
+    async def marketing_command(self, update: Update, context) -> None:
+        """Handle /marketing command for SEO post generation"""
+        if not update.message:
+            return
+
+        # Check if arguments provided
+        if not context.args:
+            msg = (
+                "📢 **Marketing va SEO Post Generator**\n\n"
+                "Foydalanish:\n`/marketing [mavzu]`\n\n"
+                "Misol:\n`/marketing IPhone 15 Pro haqida`\n"
+                "`/marketing Kofe do'koni reklama`"
+            )
+            await update.message.reply_text(msg, parse_mode='Markdown')
+            return
+
+        # Get topic from arguments
+        topic = ' '.join(context.args)
+        
+        await update.message.reply_text(f"⏳ **{topic}** mavzusida SEO post tayyorlanmoqda...\nIltimos kuting...", parse_mode='Markdown')
+        
+        try:
+            from marketing import marketing_ai
+            
+            # Generate post using the secondary API Key
+            post_content = marketing_ai.generate_seo_post(
+                topic=topic,
+                keywords=topic,
+                language='uz'
+            )
+            
+            await update.message.reply_text(post_content)
+            
+            # Generate image prompt
+            await update.message.reply_text("🖼 **Rasm uchun g'oya (Imagen 3 Prompt):**\nGenerate qilinmoqda...", parse_mode='Markdown')
+            
+            image_prompt = marketing_ai.generate_image_prompt(topic)
+            if image_prompt:
+                msg = f"🎨 **Ushbu post uchun rasm prompti:**\n\n`{image_prompt}`\n\n_Bu promptni nusxalab, rasm generatorga (Imagen, Midjourney) tashlang._"
+                await update.message.reply_text(msg, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Marketing command error: {e}")
+            await update.message.reply_text("❌ Xatolik yuz berdi.")
+
     async def language_command(self, update: Update, context) -> None:
         """Handle /language command"""
         if not update or not update.effective_user or not update.message:
@@ -583,6 +658,21 @@ class TelegramBot:
             if update.message:
                 await update.message.reply_text(message, reply_markup=reply_markup)
     
+    async def unified_callback_handler(self, update: Update, context) -> None:
+        """Unified callback handler - routes to appropriate handler based on callback_data"""
+        if not update or not update.callback_query:
+            return
+        
+        query = update.callback_query
+        data = query.data or ""
+        
+        # Route to appropriate handler based on callback_data prefix
+        if data.startswith('lang_') or data == 'lang_locked':
+            await self.language_callback(update, context)
+        elif data == 'contact_operator':
+            await self.contact_callback(update, context)
+        # Add more routing here for future callbacks
+    
     async def language_callback(self, update: Update, context) -> None:
         """Handle language selection callback"""
         if not update or not update.callback_query:
@@ -594,9 +684,7 @@ class TelegramBot:
         if not query.from_user or not query.data:
             return
         
-        # Only process language callbacks to avoid collisions with other callbacks
-        if not (query.data.startswith('lang_') or query.data == 'lang_locked'):
-            return
+        # Routing is already done by unified_callback_handler
 
         user_id = str(query.from_user.id)
         language = query.data.split('_')[1] if '_' in query.data else None
@@ -1409,19 +1497,16 @@ def process_webhook_update(bot_id, bot_token, update_data):
                     send_webhook_message(bot_token, chat_id, "Sizning obunangiz tugagan yoki 14 kunlik sinov muddati yakunlangan. Iltimos, yangilang!")
                     return True
                     
-                # Komandalarni qayta ishlash
+                # Komandalarni qayta ishlash - polling handler bilan to'qnashmaslik uchun
+                # Barcha buyruqlar polling handler tomonidan qayta ishlanadi
                 if text.startswith('/start'):
-                    welcome_msg = f"Assalomu alaykum! 👋\n\nMen {bot.name} botiman. Menga savollaringizni bering, men sizga yordam beraman! 🤖"
-                    send_webhook_message(bot_token, chat_id, welcome_msg)
+                    # Start command is handled by polling handler with full welcome message
                     return True
                 elif text.startswith('/help'):
-                    help_msg = "Yordam 📋\n\nMenga har qanday savol bering, men sizga AI yordamida javob beraman.\n\nTil sozlamalari uchun /language buyrug'ini ishlating."
-                    send_webhook_message(bot_token, chat_id, help_msg)
+                    # Help command is handled by polling handler
                     return True
                 elif text.startswith('/language'):
-                    lang_msg = "Tilni tanlang / Выберите язык / Choose language:"
-                    # Language buttons qo'shish mumkin
-                    send_webhook_message(bot_token, chat_id, lang_msg)
+                    # Language command is handled by polling handler with inline keyboard
                     return True
                     
                 # AI javob olish

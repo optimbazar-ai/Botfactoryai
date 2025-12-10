@@ -1,6 +1,10 @@
 import os
 import logging
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 from flask import Flask, request
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import generate_csrf

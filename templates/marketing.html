@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}AI Marketing Vositalari - {{ config.get('APP_NAME', 'Chatbot Factory AI') }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-5 fw-bold text-gradient">
+                <i class="bi bi-megaphone me-2"></i>AI Marketing Vositalari
+            </h1>
+            <p class="lead text-muted">Sun'iy intellekt yordamida marketing kontentingizni yarating</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- SEO Post Generator -->
+        <div class="col-lg-6">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>SEO Post Yaratish</h5>
+                </div>
+                <div class="card-body">
+                    <form id="seoForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="mb-3">
+                            <label class="form-label">Mavzu</label>
+                            <input type="text" class="form-control" id="seoTopic" placeholder="Masalan: Telegram botlar" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Kalit so'zlar</label>
+                            <input type="text" class="form-control" id="seoKeywords" placeholder="bot, telegram, ai, chatbot">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Til</label>
+                            <select class="form-select" id="seoLanguage">
+                                <option value="uz" selected>O'zbek</option>
+                                <option value="ru">Русский</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-magic me-2"></i>Post Yaratish
+                        </button>
+                    </form>
+                    <div class="mt-3 d-none" id="seoResult">
+                        <label class="form-label">Natija:</label>
+                        <textarea class="form-control" rows="8" id="seoOutput" readonly></textarea>
+                        <button class="btn btn-outline-primary btn-sm mt-2" onclick="copyToClipboard('seoOutput')">
+                            <i class="bi bi-clipboard me-1"></i>Nusxa olish
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Marketing Plan Generator -->
+        <div class="col-lg-6">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-calendar-event me-2"></i>Marketing Reja</h5>
+                </div>
+                <div class="card-body">
+                    <form id="planForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="mb-3">
+                            <label class="form-label">Mahsulot nomi</label>
+                            <input type="text" class="form-control" id="productName" placeholder="Masalan: AI Chatbot xizmati" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nishon auditoriya</label>
+                            <input type="text" class="form-control" id="targetAudience" placeholder="Masalan: Kichik biznes egalari">
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-lightning me-2"></i>Reja Tuzish
+                        </button>
+                    </form>
+                    <div class="mt-3 d-none" id="planResult">
+                        <label class="form-label">3 kunlik reja:</label>
+                        <textarea class="form-control" rows="8" id="planOutput" readonly></textarea>
+                        <button class="btn btn-outline-success btn-sm mt-2" onclick="copyToClipboard('planOutput')">
+                            <i class="bi bi-clipboard me-1"></i>Nusxa olish
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image Prompt Generator -->
+        <div class="col-lg-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-image me-2"></i>AI Rasm Prompt Yaratish</h5>
+                </div>
+                <div class="card-body">
+                    <form id="imageForm" class="row g-3">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="col-md-8">
+                            <label class="form-label">Mavzu (rasm uchun)</label>
+                            <input type="text" class="form-control" id="imageTopic" placeholder="Masalan: Modern office with AI robots" required>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-info w-100 text-white">
+                                <i class="bi bi-stars me-2"></i>Prompt Yaratish
+                            </button>
+                        </div>
+                    </form>
+                    <div class="mt-3 d-none" id="imageResult">
+                        <label class="form-label">Imagen / Midjourney uchun prompt:</label>
+                        <textarea class="form-control" rows="4" id="imageOutput" readonly></textarea>
+                        <button class="btn btn-outline-info btn-sm mt-2" onclick="copyToClipboard('imageOutput')">
+                            <i class="bi bi-clipboard me-1"></i>Nusxa olish
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(elementId) {
+    const text = document.getElementById(elementId).value;
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Nusxa olindi!');
+    });
+}
+
+document.getElementById('seoForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Yaratilmoqda...';
+    
+    try {
+        const response = await fetch('/marketing/generate-seo', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            },
+            body: JSON.stringify({
+                topic: document.getElementById('seoTopic').value,
+                keywords: document.getElementById('seoKeywords').value,
+                language: document.getElementById('seoLanguage').value
+            })
+        });
+        const data = await response.json();
+        document.getElementById('seoOutput').value = data.content || data.error;
+        document.getElementById('seoResult').classList.remove('d-none');
+    } catch (err) {
+        alert('Xatolik: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-magic me-2"></i>Post Yaratish';
+    }
+});
+
+document.getElementById('planForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Tuzilmoqda...';
+    
+    try {
+        const response = await fetch('/marketing/generate-plan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            },
+            body: JSON.stringify({
+                product_name: document.getElementById('productName').value,
+                target_audience: document.getElementById('targetAudience').value
+            })
+        });
+        const data = await response.json();
+        document.getElementById('planOutput').value = data.content || data.error;
+        document.getElementById('planResult').classList.remove('d-none');
+    } catch (err) {
+        alert('Xatolik: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-lightning me-2"></i>Reja Tuzish';
+    }
+});
+
+document.getElementById('imageForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Yaratilmoqda...';
+    
+    try {
+        const response = await fetch('/marketing/generate-image-prompt', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            },
+            body: JSON.stringify({
+                topic: document.getElementById('imageTopic').value
+            })
+        });
+        const data = await response.json();
+        document.getElementById('imageOutput').value = data.prompt || data.error;
+        document.getElementById('imageResult').classList.remove('d-none');
+    } catch (err) {
+        alert('Xatolik: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-2"></i>Prompt Yaratish';
+    }
+});
+</script>
+{% endblock %}

@@ -2,6 +2,8 @@ import os
 import json
 import logging
 import requests
+import threading
+import time
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 from flask import Blueprint, request, jsonify, url_for
@@ -9,6 +11,7 @@ from app import db, app, csrf
 from models import User, Bot, ChatHistory, BotCustomer
 from ai import get_ai_response, process_knowledge_base
 from audio_processor import download_and_process_audio
+from instagram_client import InstagramClient
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -389,14 +392,38 @@ class InstagramBotManager:
     
     def __init__(self):
         self.running_bots = {}
+        self.unofficial_bots = {}
+        self.polling_threads = {}
     
     def start_bot(self, bot_id: int, access_token: str) -> bool:
         """Instagram botni ishga tushirish"""
         try:
+            # Check for Unofficial (username:password)
+            if ':' in access_token and len(access_token) < 100:
+                username, password = access_token.split(':', 1)
+                client = InstagramClient()
+                success, msg = client.login(username, password)
+                
+                if success:
+                    self.unofficial_bots[bot_id] = client
+                    logger.info(f"Unofficial Instagram bot {bot_id} started as {username}")
+                    
+                    # Start polling thread
+                    stop_event = threading.Event()
+                    thread = threading.Thread(target=self._polling_loop, args=(bot_id, client, stop_event))
+                    thread.daemon = True
+                    thread.start()
+                    self.polling_threads[bot_id] = (thread, stop_event)
+                    return True
+                else:
+                    logger.error(f"Unofficial login failed: {msg}")
+                    return False
+
+            # Official API
             if bot_id not in self.running_bots:
                 bot = InstagramBot(access_token, bot_id)
                 self.running_bots[bot_id] = bot
-                logger.info(f"Instagram bot {bot_id} started")
+                logger.info(f"Instagram bot {bot_id} started (Official)")
                 return True
             return True
         except Exception as e:
@@ -406,14 +433,35 @@ class InstagramBotManager:
     def stop_bot(self, bot_id: int) -> bool:
         """Instagram botni to'xtatish"""
         try:
+            # Stop official
             if bot_id in self.running_bots:
                 del self.running_bots[bot_id]
-                logger.info(f"Instagram bot {bot_id} stopped")
+                logger.info(f"Instagram bot {bot_id} stopped (Official)")
+            
+            # Stop unofficial
+            if bot_id in self.unofficial_bots:
+                if bot_id in self.polling_threads:
+                    _, stop_event = self.polling_threads[bot_id]
+                    stop_event.set()
+                    del self.polling_threads[bot_id]
+                del self.unofficial_bots[bot_id]
+                logger.info(f"Instagram bot {bot_id} stopped (Unofficial)")
+                
             return True
         except Exception as e:
             logger.error(f"Instagram bot stop error: {str(e)}")
             return False
     
+    def _polling_loop(self, bot_id, client, stop_event):
+        """Simple polling loop"""
+        logger.info(f"Polling started for bot {bot_id}")
+        while not stop_event.is_set():
+            try:
+                time.sleep(60) 
+            except Exception as e:
+                logger.error(f"Polling error: {e}")
+                time.sleep(60)
+
     def get_bot(self, bot_id: int) -> Optional['InstagramBot']:
         """Instagram botni olish"""
         return self.running_bots.get(bot_id)
@@ -516,7 +564,7 @@ def stop_instagram_bot(bot_id):
 def instagram_bot_status(bot_id):
     """Instagram bot holatini tekshirish"""
     try:
-        is_running = bot_id in instagram_manager.running_bots
+        is_running = bot_id in instagram_manager.running_bots or bot_id in instagram_manager.unofficial_bots
         
         with app.app_context():
             bot = Bot.query.get(bot_id)
