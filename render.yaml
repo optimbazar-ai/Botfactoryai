@@ -23,6 +23,8 @@ services:
         sync: false
       - key: GOOGLE_APPLICATION_CREDENTIALS
         sync: false
+      - key: GOOGLE_API_KEY1
+        sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: SUPPORT_TELEGRAM
