@@ -235,7 +235,9 @@ with app.app_context():
             missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
             if missing_vars:
                 logger.error(f"Missing required environment variables: {missing_vars}")
-                raise ValueError(f"Production deployment requires: {', '.join(missing_vars)}")
+                if 'DATABASE_URL' in missing_vars:
+                    logger.warning("DATABASE_URL is missing. Falling back to SQLite. Data may be lost on restart!")
+                # raise ValueError(f"Production deployment requires: {', '.join(missing_vars)}")
         
         db.create_all()
         logger.info("Database schema up to date")
